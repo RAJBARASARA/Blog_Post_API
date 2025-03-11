@@ -24,8 +24,13 @@ class Posts(db.Model):
     author = db.relationship('User', backref='posts', lazy=True)  # Define backref only once
 
 class User(db.Model):
-    '''id name email password'''
-    id = db.Column(db.Integer,primary_key=True)
-    name = db.Column(db.String(50),nullable=False)
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(50), nullable=False)
+    dob = db.Column(db.String(10), nullable=True)
+    place = db.Column(db.String(100), nullable=True)
+    address = db.Column(db.Text, nullable=True)
+    image = db.Column(db.String(255), nullable=True)
     email = db.Column(db.String(100), unique=True, nullable=False)
     password = db.Column(db.String(255), nullable=False)
+    reset_token = db.Column(db.String(64), nullable=True)  # Token for password reset
+    token_expiry = db.Column(db.DateTime, nullable=True)   # Expiry time of the token
