@@ -9,7 +9,7 @@ class Contacts(db.Model):
     email = db.Column(db.String(100), nullable=False)
     ph_no = db.Column(db.String(15), nullable = False)
     msg = db.Column(db.Text, nullable=False)
-    date = db.Column(db.String(12), nullable = True)
+    date = db.Column(db.String(50), nullable = True)
 
 class Posts(db.Model):
     '''sno title slug content date'''
