@@ -13,3 +13,4 @@ alembic~=1.14.1
 SQLAlchemy~=2.0.38
 flask_cors
 flask_jwt_extended
+flask_limiter

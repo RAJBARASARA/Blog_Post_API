@@ -5,10 +5,10 @@ import secrets
 import random
 from datetime import datetime, timedelta, timezone
 from dotenv import load_dotenv
-from flask import Flask, jsonify, request, make_response,send_from_directory
+from flask import Flask, jsonify, request, make_response
 from flask_sqlalchemy import SQLAlchemy
-from flask_jwt_extended import ( JWTManager, create_access_token, jwt_required, get_jwt_identity, create_refresh_token, )
-from flask_bcrypt import Bcrypt , check_password_hash, generate_password_hash
+from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity,unset_jwt_cookies
+from flask_bcrypt import Bcrypt, check_password_hash, generate_password_hash
 from flask_cors import CORS
 from flask_migrate import Migrate
 from faker import Faker
@@ -264,7 +264,7 @@ def forgot_password():
             If you did not request this, please ignore this email.
 
             Regards,
-            Your Team
+            Your Team Code Hunter
             """
             msg = Message(subject, recipients=[email], body=body)
             mail.send(msg)
@@ -280,25 +280,31 @@ def forgot_password():
 def reset_password(token):
     try:
         data = request.get_json()
-        email = data.get('email', '').strip()
         new_password = data.get('new_password', '')
+        confirm_password = data.get('confirm_password', '')
 
-        # Validate Inputs
-        if not email:
-            return jsonify({"status": False, "error": "Email is required"}), 400
+        errors = {}
+
         if not new_password:
-            return jsonify({"status": False, "error": "New password is required"}), 400
-        if len(new_password) < 8 or not re.search(r'\d', new_password) or not re.search(r'[A-Z]', new_password):
-            return jsonify({"status": False, "error": "Password must be at least 8 characters long, include at least one number, one uppercase letter"}), 400
+            return jsonify({"status": False, "error": "Password is required"}), 400
+        elif len(new_password) < 8 or not re.search(r'\d', new_password) or not re.search(r'[A-Z]', new_password):
+            return jsonify({"status": False, "error": "Password must be at least 8 characters, include a number and an uppercase letter"}), 400
+        if not confirm_password:
+            errors["confirm_password"] = "Confirm password is required."
+        elif confirm_password != new_password:
+            errors["confirm_password"] = "Passwords do not match."
 
-        # Check if user exists
-        user = User.query.filter_by(email=email).first()
+        if errors:
+            return jsonify({"status": False, "errors": errors}), 400
+
+        # Find user by token
+        user = User.query.filter_by(reset_token=token).first()
         if not user:
-            return jsonify({"status": False, "error": "User not found"}), 404
-
-        # Validate token
-        if user.reset_token != token or user.token_expiry < datetime.now(timezone.utc):
             return jsonify({"status": False, "error": "Invalid or expired reset token"}), 400
+
+        # Validate token expiry (fixing the timezone issue)
+        if user.token_expiry.replace(tzinfo=timezone.utc) < datetime.now(timezone.utc):
+            return jsonify({"status": False, "error": "Token has expired"}), 400
 
         # Update password and clear reset token
         user.password = generate_password_hash(new_password)
@@ -306,10 +312,94 @@ def reset_password(token):
         user.token_expiry = None
         db.session.commit()
 
-        return jsonify({"status": True, "message": "Password reset successful!"}), 200
+        # Send email notification
+        try:
+            subject = "Password Reset Successful!"
+            body = f"""
+            Hello {user.name},
+
+            Your password has been successfully reset. If you did not request this change, please contact support immediately.
+
+            Best Regards,  
+            The Team Code Hunter
+            """
+            msg = Message(subject, recipients=[user.email],body=body)
+            msg.body = body
+            mail.send(msg)
+        except Exception as e:
+            app.logger.error(f"Failed to send reset password email: {str(e)}")
+
+        return jsonify({"status": True, "message": "Password reset successful! A confirmation email has been sent."}), 200
 
     except Exception as e:
         return jsonify({"status": False, "error": f"Reset password failed: {str(e)}"}), 500
+
+@app.route('/change-password', methods=['POST'])
+@jwt_required()
+def change_password():
+    try:
+        data = request.get_json()
+        current_password = data.get('current_password', '').strip()
+        new_password = data.get('new_password', '').strip()
+        confirm_password = data.get('confirm_password', '').strip()
+
+        errors = {}
+
+        if not current_password:
+            errors["current_password"] = "Current password is required."
+
+        if not new_password:
+            return jsonify({"status": False, "error": " New Password is required"}), 400
+        elif len(new_password) < 8 or not re.search(r'\d', new_password) or not re.search(r'[A-Z]', new_password):
+            return jsonify({"status": False, "error": " New Password must be at least 8 characters, include a number and an uppercase letter"}), 400
+
+        if not confirm_password:
+            errors["confirm_password"] = "Confirm password is required."
+        elif confirm_password != new_password:
+            errors["confirm_password"] = "Passwords do not match."
+
+        if errors:
+            return jsonify({"status": False, "errors": errors}), 400
+
+        user_id = get_jwt_identity()
+        user = User.query.get(user_id)
+        if not user:
+            return jsonify({"status": False, "error": "User not found"}), 404
+
+        if not check_password_hash(user.password, current_password):
+            return jsonify({"status": False, "error": "Incorrect current password"}), 401
+
+        if check_password_hash(user.password, new_password):
+            return jsonify({"status": False, "error": "New password cannot be the same as the old password"}), 400
+
+        user.password = generate_password_hash(new_password)
+        db.session.commit()
+
+        # Force logout by unsetting all JWT cookies
+        response = jsonify({"status": True, "message": "Password changed successfully! You have been logged out on all devices."})
+        unset_jwt_cookies(response)
+
+        # Send email notification
+        try:
+            subject = "Password Change Notification"
+            body = f"""
+            Hello {user.name},
+
+            Your password has been successfully changed. If you did not request this change, please contact support immediately.
+
+            Best Regards,  
+            The Team Code Hunter
+            """
+            msg = Message(subject, recipients=[user.email])
+            msg.body = body
+            mail.send(msg)
+        except Exception as e:
+            app.logger.error(f"Failed to send password change email: {str(e)}")
+
+        return response
+
+    except Exception as e:
+        return jsonify({"status": False, "error": f"Password change failed: {str(e)}"}), 500
 
 @app.route('/random_post/<int:user_id>', methods=['POST'])
 def random_post(user_id):
@@ -345,36 +435,46 @@ def random_post(user_id):
     }), 201
 
 @app.route("/post", methods=['GET'])
-def post():    
-    no_of_posts = 2
-    page = max(1, request.args.get('page', 1, type=int))
-    posts_paginated = Posts.query.paginate(page=page, per_page=no_of_posts, error_out=False)
+def get_posts():
+    try:
+        # Get query parameters from the request URL
+        search_query = request.args.get("search", "").strip()
+        page = request.args.get("page", 1, type=int)
+        per_page = request.args.get("per_page", 2, type=int)
 
-    posts_data = [
-        {
-            "id": post.sno,
-            "title": post.title,
-            "content": post.content,
-            "slug": post.slug,
-            "img_file": post.img_file,
-            "date": post.date
-        }
-        for post in posts_paginated
-    ]
-    
-    prev_page = f"/post?page={page - 1}" if posts_paginated.has_prev else None,
-    next_page = f"/post?page={page + 1}" if posts_paginated.has_next else None,
-    
-    response = {
+        if search_query:
+            posts_query = posts_query.filter(Posts.title.ilike(f"%{search_query}%"))
+
+        posts_paginated = Posts.query.paginate(page=page, per_page=per_page, error_out=False)
+
+        if not posts_paginated.items:
+            return jsonify({"error": "No posts found", "status": False}), 404
+
+        posts_data = [
+            {
+                "id": post.sno,
+                "title": post.title,
+                "content": post.content,
+                "slug": post.slug,
+                "img_file": post.img_file,
+                "date": post.date if post.date else None
+            }
+            for post in posts_paginated.items
+        ]
+
+        return jsonify({
             "message": "Posts fetched successfully!",
+            "status": True,
+            "search_query": search_query,
             "current_page": page,
-            "total_pages": posts_paginated.pages or 1,
+            "per_page": per_page,
+            "total_pages": posts_paginated.pages,
             "total_posts": posts_paginated.total,
-            "posts": posts_data,
-            "prev_page": prev_page,   
-            "next_page": next_page    
-        }
-    return make_response(jsonify(response), 200)
+            "posts": posts_data
+        }), 200
+
+    except Exception as e:
+        return jsonify({"error": f"An error occurred: {str(e)}", "status": False}), 500
 
 @app.route("/post/<string:post_slug>",methods = ['GET'])
 def post_slug(post_slug):
@@ -392,7 +492,7 @@ def post_slug(post_slug):
                 "user_id": post.user_id
             }
         ]
-        return make_response(jsonify({"message": "Post fetched successfully!", "post": post_data}), 200)
+        return make_response(jsonify({"message": "Post fetched successfully!","status": True, "post": post_data}), 200)
 
 @app.route("/add",methods=['POST'])
 @jwt_required()
@@ -406,17 +506,17 @@ def add_post():
         date = datetime.now().strftime("%d-%m-%Y %I:%M %p")
 
         if not title:
-            return jsonify({"error": "Title is required!"}), 400
+            return jsonify({"error": "Title is required!","status": False}), 400
         if len(title) < 3 or len(title) > 100:
-            return jsonify({"error": "Title must be between 3 and 100 characters!"}), 400
+            return jsonify({"error": "Title must be between 3 and 100 characters!","status": False}), 400
 
         if not content:
             return jsonify({"error": "Content is required!"}), 400
         if len(content) < 10 or len(content) > 5000:
-            return jsonify({"error": "Content must be between 10 and 5000 characters!"}), 400
+            return jsonify({"error": "Content must be between 10 and 5000 characters!","status": False}), 400
         
         if not img_file:
-            return jsonify({"error": "Image file is required!"}), 400
+            return jsonify({"error": "Image file is required!","status": False}), 400
     
         # Generate Unique Slug from Title
         base_slug = slugify(title)
@@ -430,7 +530,7 @@ def add_post():
         filename = None
         if img_file and img_file.filename:
             if not allowed_file(img_file.filename):
-                return jsonify({"error": "Invalid file type! Only JPG, JPEG, PNG allowed."}), 400
+                return jsonify({"error": "Invalid file type! Only JPG, JPEG, PNG allowed.","status": False}), 400
 
             filename = secure_filename(img_file.filename)
             upload_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
@@ -449,6 +549,7 @@ def add_post():
 
         return jsonify({
             "message": "Post added successfully!",
+            "status": True,
             "post": {
                 "id": new_post.sno,
                 "title": new_post.title,
@@ -471,14 +572,14 @@ def edit_post(sno):
         user_id = get_jwt_identity()
         user = User.query.get(user_id)
         if not user:
-            return jsonify({"error": "Unauthorized! Please log in."}), 401
+            return jsonify({"error": "Unauthorized! Please log in.","status": False}), 401
         
         post = Posts.query.get(sno)
         if not post:
-            return jsonify({"error": f"Post with ID {sno} not found!"}), 404
+            return jsonify({"error": f"Post with ID {sno} not found!","status": False}), 404
 
         if post.user_id != user.id:
-            return jsonify({"error": "You are not authorized to edit this post!"}), 403
+            return jsonify({"error": "You are not authorized to edit this post!","status": False}), 403
         
         if request.method == 'GET':
             return jsonify({
@@ -500,14 +601,14 @@ def edit_post(sno):
             img_file = request.files.get('img_file')
 
             if not title:
-                return jsonify({"error": "Title is required!"}), 400
+                return jsonify({"error": "Title is required!","status": False}), 400
             if len(title) < 3 or len(title) > 100:
-                return jsonify({"error": "Title must be between 3 and 100 characters!"}), 400
+                return jsonify({"error": "Title must be between 3 and 100 characters!","status": False}), 400
 
             if not content:
-                return jsonify({"error": "Content is required!"}), 400
+                return jsonify({"error": "Content is required!","status": False}), 400
             if len(content) < 10 or len(content) > 5000:
-                return jsonify({"error": "Content must be between 10 and 5000 characters!"}), 400
+                return jsonify({"error": "Content must be between 10 and 5000 characters!","status": False}), 400
 
             base_slug = slugify(title)
             unique_slug = base_slug
@@ -531,6 +632,7 @@ def edit_post(sno):
 
             return jsonify({
                 "message": "Post updated successfully!",
+                "status": True,
                 "post": {
                     "id": post.sno,
                     "title": post.title,
@@ -552,10 +654,11 @@ def delete_post(sno):
     
     post = Posts.query.get(sno)
     if not post:
-        return jsonify({"error": "Post not found!"}), 404
+        return jsonify({"error": "Post not found!","status": False}), 404
     if post.user_id != user_id:
         return jsonify({
                 "error": "Unauthorized! You can only delete your own posts.",
+                "status": False,
                 "expected_user": post.user_id,
                 "provided_user": user_id
             }), 403
@@ -565,6 +668,7 @@ def delete_post(sno):
         db.session.commit()
         return jsonify({
             "message": "Post deleted successfully!",
+            "status": True,
             "deleted_post": {
                 "id": post.sno,
                 "title": post.title,
@@ -585,26 +689,22 @@ def contact():
     message = data.get('message', '').strip()
     date = datetime.now().strftime("%d-%m-%Y %I:%M %p")
     
-    email_regex = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
-    phone_regex = r'^\d{10}$'
-    name_regex = r'^[A-Za-z\s]{3,100}$'
-
     # Validation errors
     errors = {}
 
     if not name:
-        errors['name'] = "Name is required"
-    elif not re.match(name_regex, name):
-        errors['name'] = "Name must be 3-100 characters long and contain only letters and spaces"
+            errors['name'] = "Name is required"
+    elif not re.match(r"^[A-Za-z\s]+$", name):
+            errors['name'] = "Name must contain only letters and spaces"
 
     if not email:
-        errors['email'] = "Email is required"
-    elif not re.match(email_regex, email):
-        errors['email'] = "Invalid email format! Example: user@example.com"
+            errors['email'] = "Email is required"
+    elif not re.match(r"[^@]+@[^@]+\.[^@]+", email):
+            errors['email'] = "Invalid email format"
 
     if not phone:
         errors['phone'] = "Phone number is required"
-    elif not re.match(phone_regex, phone):
+    elif not re.match(r'^\d{10}$', phone):
         errors['phone'] = "Phone number must be exactly 10 digits long"
 
     if not message:
@@ -642,43 +742,79 @@ def contact():
         app.logger.error(f"Contact form submission error: {str(e)}")
         return jsonify({"status": False, "error": "Something went wrong! Please try again later.", "details": str(e)}), 500
 
-@app.route("/search",methods = ['GET','POST'])
-def search():
-    data = request.get_json()
-    # print(data)
-    if request.method=='POST':
-        query = data.get("search")
-        # print(query)
-        if not query:
-            return make_response(jsonify({"error": "Search term cannot be empty"}), 400)
-        results = Posts.query.filter(Posts.title.like(f"%{query}%")).all()
-        if not results:
-            return make_response(jsonify({"error": "No posts found"}), 404)
+@app.route("/user/posts", methods=['GET'])
+@jwt_required()
+def user_posts():
+    try:
+        current_user_id = get_jwt_identity()
+        
+        per_page = request.args.get("per_page", default=2, type=int)
+        page = max(1, request.args.get("page", 1, type=int))
+        search_query = request.args.get("search", default="", type=str).strip()
+
+        posts_query = Posts.query.filter_by(user_id=current_user_id)
+        
+        if search_query:
+            posts_query = posts_query.filter(Posts.title.ilike(f"%{search_query}%"))
+        
+        posts_paginated = posts_query.paginate(page=page, per_page=per_page, error_out=False)
+
+        # If no posts found
+        if not posts_paginated.items:
+            return jsonify({"error": "No posts found", "status": False}), 404
+
         posts_data = [
             {
                 "id": post.sno,
                 "title": post.title,
                 "content": post.content,
-                "slug": post.slug, 
-                "img_file": post.img_file, 
+                "slug": post.slug,
+                "img_file": post.img_file,
                 "date": post.date
             }
-            for post in results
+            for post in posts_paginated.items
         ]
-        return make_response(jsonify({"message": "Search successful!", "posts": posts_data}), 200)
+        
+        return jsonify({
+            "status": True,
+            "message": "User posts fetched successfully!",
+            "current_page": page,
+            "per_page": per_page,
+            "total_pages": posts_paginated.pages or 1,
+            "total_posts": posts_paginated.total,
+            "posts": posts_data
+        }), 200
 
-@app.route("/uploader", methods=['POST'])
+    except Exception as e:
+        return jsonify({"error": f"An error occurred: {str(e)}", "status": False}), 500
+
+@app.route('/profile', methods=['GET'])
 @jwt_required()
-def uploader():
-            f = request.files['file1']
-            if f.filename == '':
-                return make_response(jsonify({"error": "No file selected"}), 400)
-            try:
-                file = secure_filename(f.filename)
-                f.save(os.path.join(app.config['UPLOAD_FOLDER'], file))
-                return make_response(jsonify({"success": "File uploaded successfully","File":file}), 201)
-            except Exception as e:
-                return make_response(jsonify({"error": f"An error occurred: {str(e)}"}), 500)
+def profile():
+    try:
+        # Get the user ID from JWT token
+        user_id = int(get_jwt_identity())
+
+        user = User.query.get(user_id)
+        if not user:
+            return jsonify({"status": False, "error": "User not found"}), 404
+
+        return jsonify({
+            "status": True,
+            "message": "User profile fetched successfully!",
+            "user": {
+                "id": user.id,
+                "name": user.name,
+                "dob": user.dob,
+                "place": user.place,
+                "address": user.address,
+                "email": user.email,
+                "image_url": user.image
+            }
+        }), 200
+
+    except Exception as e:
+        return jsonify({"status": False, "error": f"Error fetching profile: {str(e)}"}), 500
 
 if __name__ == '__main__':
     app.run(debug=True)
