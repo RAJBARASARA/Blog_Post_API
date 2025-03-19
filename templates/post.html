@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Your Posts</title>
+    <link rel="stylesheet" href="../static/css/post.css"> <!-- Link to CSS file -->
+</head>
+<body>
+    <header>
+        <div class="nav container">
+            <div class="logo">
+                <a href="./home.html">Code <span>Hunter</span></a>
+            </div>
+            <div class="menu">
+                <div class="nav-links">
+                    <a href="./home.html" class="link">Home</a>
+                    <a href="./post.html" class="link protected-link">Post</a>
+                    <a href="./dashboard.html" class="link protected-link">Dashboard</a>
+                    <a href="./contact.html" class="link">Contact us</a>
+                </div>                
+                <div class="nav-buttons" id="nav-buttons">
+                    <!-- Login/Logout buttons will be dynamically updated -->
+                </div>
+            </div>
+            <div class="hamburger">
+                <i class="bx bx-menu"></i>
+            </div>
+        </div>
+    </header>
+
+    <div class="container py-5">
+        <div class="row justify-content-center">
+            <div class="col-md-10 col-lg-8 col-xl-7">
+                <div id="flash-messages"></div>
+                <div id="posts-container"></div> <!-- Posts will be dynamically inserted here -->
+
+                <!-- Pagination -->
+                <div class="d-flex justify-content-between mt-4">
+                    <button id="prevBtn" class="btn btn-primary" disabled>&larr; Previous</button>
+                    <button id="nextBtn" class="btn btn-primary" disabled>Next &rarr;</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="../static/js/post.js"></script> <!-- Link to JavaScript file -->
+</body>
+</html>

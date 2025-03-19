@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Edit Post</title>
+    <link rel="stylesheet" href="../static/css/edit_post.css">
+</head>
+<body>
+    <!-- Main Content -->
+    <div class="container">
+        <h1>Edit Post</h1>
+        <a href="./dashboard.html"><button class="btn secondary">Back to Dashboard</button></a>
+        <hr>
+
+        <form id="editPostForm" enctype="multipart/form-data">
+            <input type="hidden" id="postId">
+
+            <div class="input-group">
+                <label for="title">Title</label>
+                <input type="text" name="title" id="title" placeholder="Enter Title" required>
+            </div>
+
+            <div class="input-group">
+                <label for="slug">Slug (Auto-generated)</label>
+                <input type="text" id="slug" disabled>
+            </div>
+
+            <div class="input-group">
+                <label for="content">Content</label>
+                <textarea name="content" id="content" rows="7" placeholder="Enter Content" required></textarea>
+            </div>
+
+            <!-- Display Current Image -->
+            <div class="input-group" id="imageContainer">
+                <label>Current Image:</label>
+                <br>
+                <img id="currentImage" class="post-image" src="" alt="Post Image">
+            </div>
+
+            <div class="input-group">
+                <label for="img_file">Upload New Image (optional)</label>
+                <input type="file" name="img_file" id="img_file" accept="image/*">
+            </div>
+
+            <button class="btn primary" type="submit">Update</button>
+            
+            <div id="message"></div>
+        </form>
+    </div>
+
+    <script src="../static/js/edit_post.js"></script>
+</body>
+</html>

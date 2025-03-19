@@ -3,12 +3,15 @@ import math
 import re
 import secrets
 import random
+import jwt
 from datetime import datetime, timedelta, timezone
 from dotenv import load_dotenv
 from flask import Flask, jsonify, request, make_response
 from flask_sqlalchemy import SQLAlchemy
-from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity,unset_jwt_cookies
+from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity,unset_jwt_cookies,decode_token
 from flask_bcrypt import Bcrypt, check_password_hash, generate_password_hash
+from jwt import decode, ExpiredSignatureError, InvalidTokenError
+from flask_jwt_extended.exceptions import JWTDecodeError
 from flask_cors import CORS
 from flask_migrate import Migrate
 from faker import Faker
@@ -441,14 +444,20 @@ def get_posts():
         search_query = request.args.get("search", "").strip()
         page = request.args.get("page", 1, type=int)
         per_page = request.args.get("per_page", 2, type=int)
+        
+        posts_query = Posts.query
 
         if search_query:
             posts_query = posts_query.filter(Posts.title.ilike(f"%{search_query}%"))
 
-        posts_paginated = Posts.query.paginate(page=page, per_page=per_page, error_out=False)
+        posts_paginated = posts_query.paginate(page=page, per_page=per_page, error_out=False)
 
         if not posts_paginated.items:
-            return jsonify({"error": "No posts found", "status": False}), 404
+            return make_response(jsonify({
+            "message": "No posts found",
+            "posts": [],
+            "status": "true"
+        }), 200)
 
         posts_data = [
             {
@@ -457,7 +466,8 @@ def get_posts():
                 "content": post.content,
                 "slug": post.slug,
                 "img_file": post.img_file,
-                "date": post.date if post.date else None
+                "author": post.author.name if post.author else "Unknown Author",
+                "date": post.date if post.date else ""
             }
             for post in posts_paginated.items
         ]
@@ -480,7 +490,11 @@ def get_posts():
 def post_slug(post_slug):
         post = Posts.query.filter_by(slug=post_slug).first()
         if not post:
-            return make_response(jsonify({"error": "Post not found"}), 404)
+            return make_response(jsonify({
+            "message": "No posts found",
+            "posts": [],
+            "status": "true"
+        }), 200)
         post_data = [
             {
                 "id": post.sno,
@@ -511,7 +525,7 @@ def add_post():
             return jsonify({"error": "Title must be between 3 and 100 characters!","status": False}), 400
 
         if not content:
-            return jsonify({"error": "Content is required!"}), 400
+            return jsonify({"error": "Content is required!","status": False}), 400
         if len(content) < 10 or len(content) > 5000:
             return jsonify({"error": "Content must be between 10 and 5000 characters!","status": False}), 400
         
@@ -748,7 +762,7 @@ def user_posts():
     try:
         current_user_id = get_jwt_identity()
         
-        per_page = request.args.get("per_page", default=2, type=int)
+        per_page = request.args.get("per_page", type=int)
         page = max(1, request.args.get("page", 1, type=int))
         search_query = request.args.get("search", default="", type=str).strip()
 
@@ -760,8 +774,16 @@ def user_posts():
         posts_paginated = posts_query.paginate(page=page, per_page=per_page, error_out=False)
 
         # If no posts found
+        # if not posts_paginated.items:
+        #     return jsonify({"success": "No posts found", "status": False}), 404
+        
         if not posts_paginated.items:
-            return jsonify({"error": "No posts found", "status": False}), 404
+            return jsonify({
+                "status": True,
+                "message": "No posts found",
+                "posts": []
+            }), 200
+        
 
         posts_data = [
             {

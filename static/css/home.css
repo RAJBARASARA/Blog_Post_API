@@ -112,6 +112,20 @@ header{
     gap: 1rem;
 }
 
+.logout{
+    padding: 8px 14px;
+    text-transform: uppercase;
+    font-weight: 400;
+    border-radius: 4px;
+    background: var(--second-color);
+    color: var(--bg-color);
+}
+
+.logout:hover {
+    background: hsl(199, 98%, 56%);
+    transition: 0.5s;
+}
+
 .login{
     padding: 8px 14px;
     text-transform: uppercase;
@@ -157,6 +171,42 @@ header{
     font-size: 1rem;
     font-weight: 400;
 }
+/* section end */
+
+/* search start */
+/* 🔍 Search Bar Styling */
+.search-container {
+    display: flex;
+    justify-content: center;
+    margin: 20px auto;
+    max-width: 500px;
+}
+
+#search-input {
+    flex: 1;
+    padding: 10px;
+    border: 2px solid #333;
+    border-radius: 5px;
+    font-size: 16px;
+    outline: none;
+}
+
+#search-btn {
+    padding: 10px 15px;
+    border: none;
+    background: var(--container-color);
+    color: white;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 16px;
+    margin-left: 8px;
+}
+
+#search-btn:hover {
+    background: var(--second-color);
+    color: var(--bg-color);
+}
+
 /* section end */
 /* Post start */
 
@@ -244,8 +294,44 @@ header{
     display: flex;
     justify-content: center;
     align-items: center;
-    /* background-color: #111; */
-    gap: 1rem;
+    gap: 0.5rem;
+    /* margin-top: 20px; */
+}
+
+.page-btn {
+    padding: 8px 12px;
+    border: none;
+    background: var(--container-color);
+    color: var(--bg-color);
+    border-radius: 5px;
+    cursor: pointer;
+    transition: 0.3s;
+    font-size: 1rem;
+}
+
+.page-btn:hover {
+    background: var(--second-color);
+    color: var(--bg-color);
+}
+
+.page-btn.active {
+    background: var(--second-color);
+    color: white;
+    font-weight: bold;
+}
+
+.dots {
+    padding: 8px 12px;
+    font-weight: bold;
+    color: var(--text-color);
+}
+
+/* Responsive Pagination */
+@media (max-width: 600px) {
+    .page-btn {
+        padding: 6px 10px;
+        font-size: 0.9rem;
+    }
 }
 
 .pagination-btn {
@@ -445,6 +531,7 @@ footer p{
         font-size: 1.8rem;
     }
 }
+
 
 
 

@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard</title>
+    <!-- Box Icons -->
+    <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="../static/css/dashboard.css">
+</head>
+
+<body>
+    <!-- Sidebar -->
+    <div class="sidebar">
+        <div class="logo">
+            <a href="./home.html">Code <span>Hunter</span></a>
+        </div>
+        <nav class="nav">
+            <div class="nav-links">
+                <a href="./home.html" class="nav-link">
+                    <i class='bx bx-home'></i>
+                    <span>Home</span>
+                </a>
+                <a href="#" class="nav-link active">
+                    <i class='bx bxs-dashboard'></i>
+                    <span>Dashboard</span>
+                </a>
+                <a href="./add_post.html" class="nav-link">
+                    <i class='bx bx-plus-circle'></i>
+                    <span>Add Post</span>
+                </a>
+                <a href="#" id="logout" class="nav-link">
+                    <i class='bx bx-log-out'></i>
+                    <span>Logout</span>
+                </a>
+            </div>
+        </nav>
+    </div>
+
+    <!-- Main Content -->
+    <main class="main">
+        <div class="header">
+            <h1>Dashboard</h1>
+            <div class="user-info">
+                <span id="user-name">Welcome</span>
+                <img src="../static/assets/img/logo.png" alt="Profile" class="profile-img">
+            </div>
+        </div>
+        
+
+        <div class="content">
+            <!-- Stats Cards -->
+            <div class="stats-container">
+                <div class="stat-card">
+                    <i class='bx bx-file'></i>
+                    <div class="stat-info">
+                        <h3>Total Posts</h3>
+                        <span id="total-posts">0</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Search Section -->
+            <div class="section">
+                <h2>Search Posts</h2>
+                <form class="search-form" id="search-form">
+                    <input type="text" placeholder="Search title..." id="search-input" class="search-input">
+                    <!-- <button type="submit" class="btn">Search</button> -->
+                </form>
+            </div>
+
+            <!-- Posts Table -->
+            <div class="section">
+                <h2>Manage Posts</h2>   
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Sr.no</th>
+                                <th>Title</th>
+                                <th>Date</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="posts-table-body">
+                            <!-- Posts will be populated here dynamically -->
+                        </tbody>
+                    </table>
+                    <!-- Pagination Controls -->
+                    <div class="pagination"></div>
+                </div>
+            </div>
+        </div>
+    </main>
+    <script src="../static/js/dashboard.js"></script>
+</body>
+</html>
